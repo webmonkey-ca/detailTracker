@@ -1,0 +1,61 @@
+{# --- PO Creation Modal --- #}
+{# Note: This modal needs to be triggered by JS from dashboard.html or unit_info.html #}
+{# The JS should also set the form action and the 'source' hidden input value #}
+<div id="po-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-gray-900 bg-opacity-50">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 relative max-h-[90vh] overflow-y-auto">
+        {# Close Button #}
+        <button id="po-modal-close" class="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-2xl leading-none" aria-label="Close">&times;</button>
+
+        <h2 class="text-xl font-semibold mb-4 text-gray-800">Create PO / Add Jobs for Unit <span id="po-modal-stock-number" class="font-bold"></span></h2>
+
+        <form id="po-form" method="POST" action=""> {# Action will be set by JS #}
+            <input type="hidden" name="source" id="po-modal-source" value=""> {# Value ('dashboard' or 'unit_info') set by JS #}
+
+            {# PO Number (Required only if source is 'dashboard') #}
+            <div class="mb-4">
+                <label for="po_number" class="block text-sm font-medium text-gray-700">PO Number <span id="po-required-indicator" class="text-red-500 hidden">*</span></label>
+                <input type="text" name="po_number" id="po_number"
+                       class="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2">
+                <p id="po-required-text" class="text-xs text-gray-500 mt-1 hidden">Required when creating from Dashboard.</p>
+            </div>
+
+            {# Standard Services #}
+            <div class="mb-4 border rounded p-3">
+                <h3 class="text-base font-medium text-gray-800 mb-2">Standard Services</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 max-h-48 overflow-y-auto">
+                    {% for service in autospa_services %}
+                        <label class="flex items-center space-x-2 text-sm">
+                            <input type="checkbox" name="standard_service" value="{{ service.service }}" data-cost="{{ service.cost | default(0.0) }}"
+                                   class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 po-service-checkbox">
+                            <span>{{ service.service }} (${{ "%.2f"|format(service.cost|float) if service.cost is not none else '0.00' }})</span>
+                        </label>
+                    {% else %}
+                        <p class="text-sm text-gray-500 col-span-full">No standard services found.</p>
+                    {% endfor %}
+                </div>
+            </div>
+
+            {# Custom Services #}
+            <div class="mb-4 border rounded p-3">
+                <h3 class="text-base font-medium text-gray-800 mb-2">Custom Services</h3>
+                <div id="custom-services-container" class="space-y-2">
+                    {# JS will add rows here like this: #}
+                    </div>
+                <button type="button" id="add-custom-service" class="mt-2 text-sm text-indigo-600 hover:text-indigo-800">+ Add Custom Service</button>
+            </div>
+
+            {# Total Cost #}
+            <div class="mb-6 text-right">
+                <span class="text-lg font-semibold text-gray-800">Total Estimated Cost: $</span><span id="po-total-cost" class="text-lg font-semibold text-gray-800">0.00</span>
+            </div>
+
+            {# Submit Button #}
+            <div class="mt-6 flex justify-end space-x-3">
+                 <button type="button" id="po-modal-cancel" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"> Cancel </button>
+                 <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                     Add Services / Create PO
+                 </button>
+            </div>
+        </form>
+    </div>
+</div>

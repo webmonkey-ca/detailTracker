@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Detail Shop Tracker{% endblock %}</title>
+    {# Tailwind CSS via CDN #}
+    <script src="https://cdn.tailwindcss.com"></script>
+    {# Font Awesome for Icons (Optional) #}
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    {# Custom CSS #}
+    <style>
+        /* Custom scrollbar styles (optional) */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb { background: #888; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        /* Flash message styling */
+        .flash-message { padding: 1rem; margin-bottom: 1rem; border-radius: 0.375rem; border: 1px solid transparent; font-weight: 500; }
+        .flash-success { color: #0f5132; background-color: #d1e7dd; border-color: #badbcc; }
+        .flash-info { color: #055160; background-color: #cff4fc; border-color: #b6effb; }
+        .flash-warning { color: #664d03; background-color: #fff3cd; border-color: #ffecb5; }
+        .flash-danger { color: #842029; background-color: #f8d7da; border-color: #f5c2c7; }
+
+        /* Sidebar and Content Transitions */
+        #sidebar, #header, #main-content {
+            transition: transform 0.3s ease-in-out, margin-left 0.3s ease-in-out;
+        }
+
+        /* Styles for when sidebar is open */
+        body.sidebar-is-open #sidebar {
+            transform: translateX(0);
+        }
+        @media (min-width: 768px) { /* md breakpoint */
+             body.sidebar-is-open #header {
+                 margin-left: 16rem; /* Corresponds to w-64 */
+             }
+             body.sidebar-is-open #main-content {
+                 margin-left: 16rem; /* Corresponds to w-64 */
+             }
+        }
+
+        /* Chat badge style */
+        .chat-badge {
+            position: absolute;
+            top: 0.3rem; /* Adjust as needed */
+            right: 0.3rem; /* Adjust as needed */
+            min-width: 1.25rem; /* w-5 */
+            height: 1.25rem; /* h-5 */
+            font-size: 0.65rem; /* Smaller font */
+            line-height: 1.25rem; /* Center text vertically */
+        }
+
+    </style>
+    {% block head_extra %}{% endblock %} {# Placeholder for extra head elements #}
+</head>
+<body class="bg-gray-100 font-sans"> {# Class sidebar-is-open will be added/removed here #}
+
+    <div class="flex h-screen overflow-hidden overflow-x-hidden">
+        {# Sidebar (Defaults to hidden off-screen) #}
+        <aside id="sidebar" class="fixed inset-y-0 left-0 z-30 w-64 bg-gray-800 text-white p-4 transform -translate-x-full transition-transform duration-300 ease-in-out overflow-y-auto">
+            <h2 class="text-2xl font-semibold mb-6">Tracker</h2>
+            <nav class="space-y-2">
+                <a href="{{ url_for('dashboard') }}" class="block py-2 px-4 rounded hover:bg-gray-700">Dashboard</a>
+                <a href="{{ url_for('overview_calendar') }}" class="block py-2 px-4 rounded hover:bg-gray-700">Overview</a>
+                <a href="{{ url_for('ready_for_pickup') }}" class="block py-2 px-4 rounded hover:bg-gray-700">Ready Pickup</a>
+                <a href="{{ url_for('view_active_jobs') }}" class="block py-2 px-4 rounded hover:bg-gray-700">View Active</a>
+                {# Chat Link #}
+                <a href="{{ url_for('chat_page') }}" class="relative block py-2 px-4 rounded hover:bg-gray-700">
+                    Chat
+                    {# Unread message badge - Uses g.user which is set in @login_required #}
+                    {% if g.user and g.user.unread_messages > 0 %}
+                        <span class="chat-badge inline-flex items-center justify-center px-1 py-0.5 text-xs font-bold leading-none text-red-100 bg-red-600 rounded-full">
+                            {{ g.user.unread_messages }}
+                        </span>
+                    {% endif %}
+                </a>
+                <a href="{{ url_for('reports_page') }}" class="block py-2 px-4 rounded hover:bg-gray-700">Reports</a> {# Reports Link #}
+
+                {# --- Side Menu Links Block --- #}
+                {% block side_menu_links %}{% endblock %}
+                {# --- End Side Menu Links Block --- #}
+
+                {# Admin Links (Conditional) #}
+                {% if g.user and g.user.role == 'admin' %}
+                <hr class="border-gray-700 my-4">
+                <h3 class="text-xs font-semibold uppercase text-gray-400 mb-2 px-4">Admin</h3>
+                <a href="{{ url_for('create_user') }}" class="block py-2 px-4 rounded hover:bg-gray-700">Create User</a>
+                <a href="{{ url_for('admin_services') }}" class="block py-2 px-4 rounded hover:bg-gray-700">Services</a>
+                <a href="{{ url_for('manage_users') }}" class="block py-2 px-4 rounded hover:bg-gray-700">Manage Users</a> {# Manage Users Link #}
+                {% endif %}
+
+                <hr class="border-gray-700 my-4">
+                <a href="{{ url_for('logout') }}" class="block py-2 px-4 rounded hover:bg-gray-700">Logout</a>
+            </nav>
+        </aside>
+
+        {# Main Content Area #}
+        <div class="flex-1 flex flex-col overflow-hidden">
+            {# Header (Fixed) #}
+            <header id="header" class="fixed top-0 left-0 right-0 z-20 bg-white shadow h-16 flex items-center justify-between px-4 transition-all duration-300 ease-in-out">
+                 {# Menu Button (Always visible now) #}
+                 <button id="menu-button" class="text-gray-600 focus:outline-none">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path></svg>
+                 </button>
+                 {# Placeholder for potential header content on the left #}
+                 <div>
+                     {# Add search or title here if needed #}
+                 </div>
+                 {# User Info / Logout on the right #}
+                 <div class="flex items-center space-x-4">
+                     {# Conditionally display welcome message #}
+                     {% if g.user %}
+                         <span class="text-sm text-gray-600">Welcome, {{ g.user.username | default('User') }}!</span>
+                     {% endif %}
+                     {# Optional: Add user profile icon/dropdown here #}
+                 </div>
+            </header>
+
+            {# Scrollable Content #}
+            <main id="main-content" class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 main-content p-6 mt-16 transition-all duration-300 ease-in-out">
+                {# Display Flash Messages #}
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        <div class="mb-4">
+                        {% for category, message in messages %}
+                         {% set category_class = category if category in ['success', 'info', 'warning', 'danger'] else 'info' %}
+                        <div class="flash-message flash-{{ category_class }}" role="alert"> {{ message }} </div>
+                        {% endfor %}
+                        </div>
+                    {% endif %}
+                {% endwith %}
+
+                {# Main content block replaced by child templates #}
+                {% block content %}{% endblock %}
+
+                {# Footer #}
+                <footer class="mt-8 text-center text-sm text-gray-500">
+                    &copy; {% set current_year = now.year %}{{ current_year }} Detail Shop Tracker
+                </footer>
+            </main>
+        </div>
+    </div>
+
+    {# Sidebar Toggle Script #}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const sidebar = document.getElementById('sidebar');
+            const menuButton = document.getElementById('menu-button');
+            const body = document.body; // Get body element
+
+            function toggleMenu() {
+                // Toggle the class on the body element
+                body.classList.toggle('sidebar-is-open');
+            }
+
+            function closeMenu() {
+                // Remove the class from the body element
+                body.classList.remove('sidebar-is-open');
+            }
+
+            if (menuButton && sidebar) {
+                menuButton.addEventListener('click', function(event) {
+                    event.stopPropagation(); // Prevent click from bubbling up to document
+                    toggleMenu();
+                });
+            }
+
+            // Click outside logic
+            document.addEventListener('click', function(event) {
+                if (!sidebar || !menuButton) return;
+
+                const isClickInsideSidebar = sidebar.contains(event.target);
+                const isClickOnMenuButton = menuButton.contains(event.target);
+                const isSidebarOpen = body.classList.contains('sidebar-is-open');
+
+                // Close only if sidebar is open and click is outside both sidebar and button
+                if (isSidebarOpen && !isClickInsideSidebar && !isClickOnMenuButton) {
+                    closeMenu();
+                }
+            });
+
+             // Close sidebar when a link inside it is clicked (optional but good UX)
+             if (sidebar) {
+                 sidebar.addEventListener('click', function(event) {
+                     // Close only if the clicked element is an anchor tag directly inside the nav
+                     if (event.target.tagName === 'A' && event.target.closest('nav')) {
+                         // Don't close if it's a link designed to just toggle sections within the same page
+                         // (like on unit_info page - check if it has data-target)
+                         if (!event.target.hasAttribute('data-target')) {
+                            closeMenu();
+                         }
+                     }
+                 });
+             }
+
+        }); // End DOMContentLoaded
+    </script>
+
+    {# Extra scripts block for child templates #}
+    {% block scripts_extra %}{% endblock %}
+
+</body>
+</html>

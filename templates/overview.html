@@ -1,0 +1,149 @@
+{% extends "layout.html" %}
+
+{% block title %}Overview Calendar{% endblock %}
+
+{% block head_extra %} {# Inject CSS and FullCalendar JS into head of layout #}
+{# Add FullCalendar CSS via CDN #}
+<link href='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.14/main.min.css' rel='stylesheet' />
+{# Add Tooltip library CSS (e.g., Tippy.js via CDN) #}
+<link rel="stylesheet" href="https://unpkg.com/tippy.js@6/dist/tippy.css" />
+{# Load FullCalendar JS Library in Head #}
+<script src='https://cdn.jsdelivr.net/npm/fullcalendar@6.1.14/index.global.min.js'></script>
+{% endblock %}
+
+{% block content %}
+<h1 class="text-3xl font-bold mb-6 text-gray-800">Overview Calendar</h1>
+
+{# Container for the calendar #}
+<div id='calendar-container' class="bg-white p-4 rounded-lg shadow-md border border-gray-200">
+    <div id='calendar'></div>
+</div>
+{% endblock %}
+
+{% block scripts_extra %} {# Inject other JS (Tippy, init script) at end of layout body #}
+
+{# Load Popper and Tippy JS Libraries #}
+<script src="https://unpkg.com/@popperjs/core@2"></script> {# Popper is needed by Tippy #}
+<script src="https://unpkg.com/tippy.js@6"></script>
+
+{# Initialization script still runs after DOM is loaded #}
+<script>
+  // --- Simple Modal Function ---
+  function showModal(title, contentHtml) {
+    const existingModal = document.getElementById('eventDetailModal');
+    if (existingModal) { existingModal.remove(); }
+    const backdrop = document.createElement('div');
+    backdrop.id = 'eventDetailModalBackdrop';
+    backdrop.className = 'fixed inset-0 bg-gray-900 bg-opacity-50 z-40';
+    const modal = document.createElement('div');
+    modal.id = 'eventDetailModal';
+    modal.className = 'fixed inset-0 z-50 flex items-center justify-center p-4';
+    const modalContent = document.createElement('div');
+    modalContent.className = 'bg-white rounded-lg shadow-xl w-full max-w-md p-6 relative';
+    const modalTitle = document.createElement('h2');
+    modalTitle.className = 'text-xl font-semibold mb-4 text-gray-800';
+    modalTitle.textContent = title;
+    const modalBody = document.createElement('div');
+    modalBody.className = 'text-gray-700 space-y-2';
+    modalBody.innerHTML = contentHtml;
+    const closeButton = document.createElement('button');
+    closeButton.className = 'absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-2xl leading-none';
+    closeButton.innerHTML = '&times;';
+    closeButton.setAttribute('aria-label', 'Close');
+    modalContent.appendChild(closeButton);
+    modalContent.appendChild(modalTitle);
+    modalContent.appendChild(modalBody);
+    modal.appendChild(modalContent);
+    document.body.appendChild(backdrop);
+    document.body.appendChild(modal);
+    const closeModal = () => { backdrop.remove(); modal.remove(); };
+    closeButton.addEventListener('click', closeModal);
+    backdrop.addEventListener('click', closeModal);
+  }
+
+
+  // --- Calendar Initialization ---
+  document.addEventListener('DOMContentLoaded', function() {
+    const calendarEl = document.getElementById('calendar');
+    if (!calendarEl) { console.error("Calendar element '#calendar' not found!"); return; }
+
+    try {
+        const calendar = new FullCalendar.Calendar(calendarEl, {
+          initialView: 'dayGridMonth',
+          headerToolbar: { left: 'prev,next today', center: 'title', right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek' },
+          timeZone: 'UTC', // Keep interpretation as UTC
+          events: '/api/overview/events', // Fetch events dynamically
+          loading: function(isLoading) { /* Optional loading indicator */ },
+          eventTimeFormat: { hour: 'numeric', minute: '2-digit', meridiem: 'short' },
+          editable: false, selectable: false, dayMaxEvents: true,
+
+          // --- Tooltip on Hover ---
+          eventDidMount: function(info) {
+            if (typeof tippy === 'function' && info.event.extendedProps.description) {
+              tippy(info.el, { content: `<strong>Step:</strong> ${info.event.extendedProps.description}`, allowHTML: true, placement: 'top', theme: 'light-border', trigger: 'mouseenter focus', interactive: false });
+            }
+          },
+
+          // --- Event Click Handler ---
+          eventClick: function(info) {
+            info.jsEvent.preventDefault(); // Prevent browser default action
+
+            const event = info.event;
+            const props = event.extendedProps;
+
+            // --- DEBUGGING ---
+            console.log("Event Clicked:", event);
+            console.log("event.startStr:", event.startStr);
+            console.log("event.endStr:", event.endStr);
+            // --- END DEBUGGING ---
+
+            // Use startStr directly (should be YYYY-MM-DD)
+            const startDate = event.startStr ? event.startStr.split('T')[0] : 'N/A';
+
+            // Calculate End Date for Display
+            let displayEndDate = 'Ongoing'; // Default
+            if (event.endStr) {
+                // event.endStr is exclusive (day AFTER event ends). Subtract 1 day for display.
+                console.log("Adjusting end date from endStr:", event.endStr); // DEBUG
+                try {
+                    let exclusiveEnd = new Date(event.endStr.split('T')[0] + 'T00:00:00Z'); // Treat as UTC date
+                    exclusiveEnd.setUTCDate(exclusiveEnd.getUTCDate() - 1); // Subtract one day
+                    displayEndDate = exclusiveEnd.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+                } catch(e) {
+                    console.error("Error adjusting end date from endStr", e);
+                    displayEndDate = event.endStr.split('T')[0] + ' (raw)'; // Fallback
+                }
+            } else if (event.startStr) {
+                 // If no end date was provided by API OR if FC sets endStr to null for single day
+                 console.log("No event.endStr found, setting displayEndDate to startDate"); // DEBUG
+                 displayEndDate = startDate;
+            } else {
+                 console.log("Neither startStr nor endStr found!"); // DEBUG
+                 displayEndDate = 'N/A';
+            }
+
+            // --- DEBUGGING ---
+            console.log("Calculated startDate:", startDate);
+            console.log("Calculated displayEndDate:", displayEndDate);
+            // --- END DEBUGGING ---
+
+            const modalContentHtml = `
+              <p><strong>Stock #:</strong> ${event.title || 'N/A'}</p>
+              <p><strong>Step:</strong> ${props.description || 'N/A'}</p>
+              <p><strong>Date In:</strong> ${startDate}</p>
+              <p><strong>Date Out:</strong> ${displayEndDate}</p> {# Use the adjusted date #}
+            `;
+            showModal('Event Details', modalContentHtml); // Assumes showModal function exists
+          }
+
+        });
+
+        calendar.render();
+
+    } catch (e) {
+        console.error("Error initializing FullCalendar:", e);
+        calendarEl.innerHTML = '<p class="text-red-500 text-center p-4">Error loading calendar. Please check the console.</p>';
+    }
+  });
+</script>
+{% endblock %}

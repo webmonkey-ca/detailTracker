@@ -1,0 +1,288 @@
+{% extends "layout.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<h1 class="text-3xl font-bold text-gray-800 mb-6">Dashboard</h1>
+
+{# Top Row Cards #}
+{# --- MODIFIED: Adjusted grid columns since one card was removed --- #}
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+
+    {# Card 1: Units in Detail (Now Units w/ Completed Jobs) #}
+    <a href="{{ url_for('completed_jobs_by_unit') }}" class="bg-white p-6 rounded-lg shadow-md border border-gray-200 flex flex-col justify-between hover:shadow-lg transition-shadow duration-200">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-700 mb-2">Units w/ Completed Jobs</h2> {# Renamed for clarity #}
+            <p class="text-4xl font-bold text-green-600">{{ data.units_in_detail | default('0') }}</p>
+        </div>
+         <span class="mt-4 text-sm text-green-500 hover:text-green-700 self-start">View Details &rarr;</span>
+    </a>
+
+    {# Card 2: Ready for Pickup #}
+    <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 flex flex-col justify-between">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-700 mb-2">Ready for Pickup</h2>
+            <p class="text-4xl font-bold text-purple-600">{{ data.ready_pickup_count | default('0') }}</p>
+        </div>
+        <a href="{{ url_for('ready_for_pickup') }}" class="mt-4 text-sm text-purple-500 hover:text-purple-700 self-start">View List &rarr;</a>
+    </div>
+
+    {# Card 3: Notes Added Today #}
+    <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 flex flex-col justify-between">
+        <div>
+            <h2 class="text-lg font-semibold text-gray-700 mb-2">Notes Added Today</h2>
+            <p class="text-4xl font-bold text-yellow-600">{{ data.notes_today_count | default('0') }}</p>
+        </div>
+        <a href="{{ url_for('notes_history') }}" class="mt-4 text-sm text-yellow-500 hover:text-yellow-700 self-start">View History &rarr;</a>
+    </div>
+
+    {# --- REMOVED: Active Jobs Card --- #}
+
+</div>
+
+{# Units Table Section #}
+<div class="bg-white p-4 sm:p-6 rounded-lg shadow-md border border-gray-200">
+    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-4">
+        <h2 class="text-xl font-semibold text-gray-700 whitespace-nowrap">Units In Progress</h2>
+        {# Search Form #}
+        <form method="GET" action="{{ url_for('dashboard') }}" class="w-full sm:w-auto">
+            <div class="flex">
+                <input type="text" name="search" placeholder="Search Stock#, VIN, Make..." value="{{ data.search_term or '' }}"
+                       class="shadow-sm border-gray-300 rounded-l-md p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500 flex-grow">
+                <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-r-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 text-sm">
+                    Search
+                </button>
+            </div>
+        </form>
+    </div>
+
+    {# Table #}
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock #</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VIN</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Year</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Make</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date In</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% if data.units_list %}
+                    {% for unit in data.units_list %}
+                    <tr>
+                        <td class="px-3 py-2 whitespace-nowrap">{{ unit.stockNumber or 'N/A' }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap">{{ unit.vin or 'N/A' }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap">{{ unit.year or 'N/A' }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap">{{ unit.make or 'N/A' }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap">{{ unit.model or 'N/A' }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap">
+                            {% if unit.location_color %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                                  style="background-color: {{ unit.location_color }}; color: {{ unit.text_color }};">
+                                {{ unit.location or 'N/A' }}
+                            </span>
+                            {% else %}
+                                {{ unit.location or 'N/A' }}
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2 whitespace-nowrap">{{ unit.dateIn.strftime('%Y-%m-%d') if unit.dateIn else 'N/A' }}</td>
+                        <td class="px-3 py-2 whitespace-nowrap space-x-2">
+                            <a href="{{ url_for('unit_info', stock_number=unit.stockNumber) }}" class="text-indigo-600 hover:text-indigo-900">Details</a>
+                            {# Create PO Button #}
+                            <button type="button" class="text-green-600 hover:text-green-900 create-po-btn" data-stock-number="{{ unit.stockNumber }}">
+                                Create PO
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="8" class="px-3 py-3 text-center text-gray-500">
+                            {% if data.search_term %}
+                                No units found matching your search criteria.
+                            {% else %}
+                                No units currently in progress (excluding FrontLine, Sold, Deleted, Delivered).
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+
+    {# Pagination #}
+    {% if data.pagination and data.pagination.total_pages > 1 %}
+    <div class="mt-4 flex justify-center items-center space-x-2 text-sm">
+        {# Previous Page Link #}
+        {% if data.pagination.page > 1 %}
+            <a href="{{ url_for('dashboard', page=data.pagination.page - 1, search=data.search_term or '') }}"
+               class="px-3 py-1 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
+               &laquo; Prev
+            </a>
+        {% else %}
+            <span class="px-3 py-1 border border-gray-200 rounded-md text-gray-400 cursor-not-allowed">
+               &laquo; Prev
+            </span>
+        {% endif %}
+
+        {# Page Numbers (simplified example) #}
+        <span>Page {{ data.pagination.page }} of {{ data.pagination.total_pages }}</span>
+
+        {# Next Page Link #}
+        {% if data.pagination.page < data.pagination.total_pages %}
+            <a href="{{ url_for('dashboard', page=data.pagination.page + 1, search=data.search_term or '') }}"
+               class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                Next &raquo;
+            </a>
+        {% else %}
+            <span class="px-3 py-1 border border-gray-200 rounded-md text-gray-400 cursor-not-allowed">
+               Next &raquo;
+            </span>
+        {% endif %}
+    </div>
+    {% endif %}
+
+</div>
+
+{# Include PO Modal #}
+{% include '_po_modal.html' %}
+
+{% endblock %}
+
+{% block scripts_extra %}
+{# JS for PO Modal on Dashboard #}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const poModal = document.getElementById('po-modal');
+        const poModalClose = document.getElementById('po-modal-close');
+        const poModalCancel = document.getElementById('po-modal-cancel');
+        const poForm = document.getElementById('po-form');
+        const poModalStockNumSpan = document.getElementById('po-modal-stock-number');
+        const poModalSourceInput = document.getElementById('po-modal-source');
+        const poRequiredIndicator = document.getElementById('po-required-indicator');
+        const poRequiredText = document.getElementById('po-required-text');
+        const poNumberInput = document.getElementById('po_number');
+        const customServicesContainer = document.getElementById('custom-services-container');
+        const addCustomServiceButton = document.getElementById('add-custom-service');
+        const totalCostSpan = document.getElementById('po-total-cost');
+
+        const createPoButtons = document.querySelectorAll('.create-po-btn');
+
+        function closePoModal() {
+            if (poModal) {
+                poModal.classList.add('hidden');
+                poModal.classList.remove('flex');
+            }
+        }
+
+        function calculateTotalCost() {
+            let total = 0.0;
+            // Standard services
+            document.querySelectorAll('#po-modal .po-service-checkbox:checked').forEach(checkbox => {
+                total += parseFloat(checkbox.getAttribute('data-cost') || 0);
+            });
+            // Custom services
+            document.querySelectorAll('#po-modal .custom-service-cost').forEach(input => {
+                total += parseFloat(input.value || 0);
+            });
+             if(totalCostSpan) totalCostSpan.textContent = total.toFixed(2);
+        }
+
+        function addCustomServiceRow() {
+            if (!customServicesContainer) return;
+            const div = document.createElement('div');
+            div.className = 'flex items-center space-x-2 custom-service-row';
+            div.innerHTML = `
+                <input type="text" name="custom_service_name[]" placeholder="Service Name" required class="flex-grow shadow-sm sm:text-sm border-gray-300 rounded-md p-1">
+                <input type="number" name="custom_service_cost[]" placeholder="Cost" required step="0.01" min="0" value="0.00" class="w-24 shadow-sm sm:text-sm border-gray-300 rounded-md p-1 custom-service-cost">
+                <button type="button" class="text-red-500 hover:text-red-700 remove-custom-service p-1 leading-none">&times;</button>
+            `;
+            customServicesContainer.appendChild(div);
+        }
+
+        function openPoModal(stockNumber, source) {
+            if (!poModal || !poForm || !poModalStockNumSpan || !poModalSourceInput) {
+                console.error("PO Modal elements not found!");
+                return;
+            }
+
+            // Reset form fields
+            poForm.reset();
+            if(customServicesContainer) customServicesContainer.innerHTML = ''; // Clear custom services
+            calculateTotalCost(); // Reset total cost display
+
+            // Set modal specifics
+            poModalStockNumSpan.textContent = stockNumber;
+            poModalSourceInput.value = source;
+            poForm.action = `/unit/create_po/${stockNumber}`; // Set form action URL
+
+            // Show/hide PO number requirement based on source
+            if (source === 'dashboard') {
+                if (poRequiredIndicator) poRequiredIndicator.classList.remove('hidden');
+                if (poRequiredText) poRequiredText.classList.remove('hidden');
+                if (poNumberInput) poNumberInput.required = true;
+            } else {
+                if (poRequiredIndicator) poRequiredIndicator.classList.add('hidden');
+                if (poRequiredText) poRequiredText.classList.add('hidden');
+                if (poNumberInput) poNumberInput.required = false;
+            }
+
+            poModal.classList.remove('hidden');
+            poModal.classList.add('flex');
+        }
+
+        // --- Event Listeners ---
+
+        // Buttons on dashboard table to open modal
+        createPoButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const stockNumber = this.getAttribute('data-stock-number');
+                openPoModal(stockNumber, 'dashboard'); // Source is 'dashboard' here
+            });
+        });
+
+        // Common modal listeners (close, cancel, background click)
+        if (poModalClose) poModalClose.addEventListener('click', closePoModal);
+        if (poModalCancel) poModalCancel.addEventListener('click', closePoModal);
+        if (poModal) {
+            poModal.addEventListener('click', function(event) {
+                if (event.target === poModal) { // Click on backdrop
+                    closePoModal();
+                }
+                 // Listener for adding custom service row (delegated)
+                if (event.target && event.target.id === 'add-custom-service') {
+                     addCustomServiceRow();
+                }
+                 // Listener for removing custom service row (delegated)
+                if (event.target && event.target.classList.contains('remove-custom-service')) {
+                    event.target.parentElement.remove();
+                    calculateTotalCost();
+                }
+            });
+             // Listeners for cost calculation (delegated)
+            poModal.addEventListener('change', function(event) {
+                if (event.target.matches('.po-service-checkbox') || event.target.matches('.custom-service-cost')) {
+                    calculateTotalCost();
+                }
+            });
+            poModal.addEventListener('input', function(event) {
+                if (event.target.matches('.custom-service-cost')) {
+                    calculateTotalCost();
+                }
+            });
+        }
+         // Close with Escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && poModal && !poModal.classList.contains('hidden')) {
+                closePoModal();
+            }
+        });
+
+    });
+</script>
+{% endblock %}

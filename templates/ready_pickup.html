@@ -1,0 +1,73 @@
+{% extends "layout.html" %}
+
+{% block title %}Units Ready for Pickup{% endblock %}
+
+{% block content %}
+<h1 class="text-3xl font-bold mb-6 text-gray-800">Units Ready for Pickup</h1>
+
+{# Display Flash Messages (e.g., success/error after clicking Pickup) #}
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+         {# Ensure category is one of the expected types for styling #}
+         {% set category = category if category in ['success', 'info', 'warning', 'danger'] else 'info' %}
+        <div class="flash-message flash-{{ category }} mb-4" role="alert">
+            {{ message }}
+        </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+<div class="bg-white p-4 sm:p-6 rounded-lg shadow-md border border-gray-200 overflow-x-auto">
+    <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+            <tr>
+                {# Define table headers #}
+                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock #</th>
+                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">VIN</th>
+                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle</th>
+                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date In</th>
+                <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th> {# Actions Header #}
+            </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+            {# Loop through the units data passed from the ready_for_pickup route #}
+            {% if units %}
+                {% for unit in units %}
+                <tr class="hover:bg-gray-50"> {# No dynamic row color needed here unless requested #}
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-blue-600 hover:text-blue-800">
+                        {# Link to the unit info page #}
+                        <a href="{{ url_for('unit_info', stock_number=unit.stockNumber) }}" class="underline">
+                            {{ unit.stockNumber | default('N/A') }}
+                        </a>
+                    </td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{{ unit.vin | default('N/A') }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{{ unit.year | default('') }} {{ unit.make | default('') }} {{ unit.model | default('') }}</td>
+                    <td class="px-4 py-3 whitespace-nowrap text-sm font-semibold text-green-700">{{ unit.location | default('N/A') }}</td> {# Highlight location #}
+                    {# Format dateIn #}
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{{ unit.dateIn.strftime('%Y-%m-%d') if unit.dateIn else 'N/A' }}</td>
+                    {# Actions Cell with Pickup Button #}
+                    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                        <form method="POST" action="{{ url_for('unit_pickup', stock_number=unit.stockNumber) }}" class="inline-block">
+                            {# Add CSRF token here if using Flask-WTF #}
+                            <button type="submit"
+                                    class="px-3 py-1 text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out"
+                                    {# Optional: Add confirmation dialog #}
+                                    {# onclick="return confirm('Mark unit {{ unit.stockNumber }} as picked up?');" #}
+                                    >
+                                Pickup
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr>
+                    <td colspan="6" class="px-4 py-4 text-center text-sm text-gray-500">No units found with location 'Ready for Pickup'.</td> {# Updated colspan #}
+                </tr>
+            {% endif %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

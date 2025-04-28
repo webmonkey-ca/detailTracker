@@ -1,0 +1,54 @@
+{% extends "layout.html" %}
+
+{% block title %}Notes History{% endblock %}
+
+{% block content %}
+<h1 class="text-3xl font-bold text-gray-800 mb-6">Notes History</h1>
+
+{# Date Selection Form #}
+<div class="mb-6 bg-white p-4 rounded-lg shadow-sm border border-gray-200">
+    <form method="GET" action="{{ url_for('notes_history') }}" id="date-select-form">
+        <label for="date" class="block text-sm font-medium text-gray-700 mb-1">Select Date:</label>
+        <input type="date" id="date" name="date" value="{{ selected_date }}"
+               class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block sm:text-sm border-gray-300 rounded-md p-2">
+        {# Button is optional, JS will handle change #}
+        {# <button type="submit" class="ml-2 px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">View Notes</button> #}
+    </form>
+</div>
+
+{# Notes List #}
+<div class="bg-white p-4 sm:p-6 rounded-lg shadow-md border border-gray-200">
+    <h2 class="text-xl font-semibold text-gray-700 mb-4">Notes for {{ selected_date }}</h2>
+    <div class="space-y-4">
+        {% if notes_list %}
+            {% for note in notes_list %}
+                <div class="border-b border-gray-200 pb-3">
+                    <p class="text-gray-800">{{ note.notes | default('N/A') }}</p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        Stock #: <a href="{{ url_for('unit_info', stock_number=note.stockNumber) }}" class="text-indigo-600 hover:text-indigo-800">{{ note.stockNumber }}</a> |
+                        Added: {{ note.dateTime.strftime('%Y-%m-%d %H:%M:%S') if note.dateTime else 'N/A' }} UTC
+                         {% if note.status %}| Status: {{ note.status }} {% endif %}
+                    </p>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p class="text-sm text-gray-500">No notes found for {{ selected_date }}.</p>
+        {% endif %}
+    </div>
+</div>
+
+{# Back Link #}
+<div class="mt-8">
+    <a href="{{ url_for('dashboard') }}" class="text-blue-500 hover:text-blue-700">&larr; Back to Dashboard</a>
+</div>
+
+{% endblock %}
+
+{% block scripts_extra %}
+<script>
+    // Reload page when date input changes
+    document.getElementById('date').addEventListener('change', function() {
+        document.getElementById('date-select-form').submit();
+    });
+</script>
+{% endblock %}

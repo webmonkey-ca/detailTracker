@@ -1,0 +1,610 @@
+{% extends "layout.html" %}
+
+{% block title %}Unit {{ unit.stockNumber or 'Details' }}{% endblock %}
+
+{# --- Add Side Menu Links specific to this page --- #}
+{% block side_menu_links %}
+    {# Links to show page sections #}
+    <a href="#" id="show-jobs-link" data-target="current-jobs-content" class="side-menu-item block py-2 px-4 rounded hover:bg-gray-700">Current Jobs</a>
+    <a href="#" id="show-steps-link" data-target="step-history-content" class="side-menu-item block py-2 px-4 rounded hover:bg-gray-700">Step History</a>
+    <a href="#" id="show-notes-link" data-target="notes-content" class="side-menu-item block py-2 px-4 rounded hover:bg-gray-700">Notes</a>
+    <a href="#" id="show-images-link" data-target="images-content" class="side-menu-item block py-2 px-4 rounded hover:bg-gray-700">Images</a>
+    <a href="#" id="show-pos-link" data-target="pos-content" class="side-menu-item block py-2 px-4 rounded hover:bg-gray-700">POs</a>
+    <a href="#" id="show-unit-chat-link" data-target="unit-chat-content" class="side-menu-item block py-2 px-4 rounded hover:bg-gray-700">Chat History</a> {# <-- ADDED LINK #}
+
+
+    {# Divider #}
+    <hr class="border-gray-700 my-2">
+
+    {# Inventory Links #}
+    {% if inventory_exists %}
+        <a href="#" id="show-inventory-link" data-target="inventory-content" class="side-menu-item block py-2 px-4 rounded hover:bg-gray-700">View Checklist</a>
+        {% if not checkout_complete %}
+            <a href="#" id="check-out-button" class="side-menu-item block py-2 px-4 rounded hover:bg-gray-700"> Check Out Checklist </a>
+        {% else %}
+             <a href="#" id="show-checkout-details-link" data-target="inventory-content" class="side-menu-item block py-2 px-4 rounded hover:bg-gray-700"> View Check-Out </a>
+        {% endif %}
+    {% else %}
+        <a href="#" id="stock-in-button" class="side-menu-item block py-2 px-4 rounded hover:bg-gray-700"> Stock In Checklist </a>
+         <span class="block py-2 px-4 text-gray-500 cursor-not-allowed" title="Complete Stock-In first">Check Out Checklist</span>
+    {% endif %}
+
+{% endblock %}
+{# --- End Side Menu Links --- #}
+
+
+{% block content %}
+{# Display Flash Messages #}
+{% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+        {% for category, message in messages %}
+         {% set category = category if category in ['success', 'info', 'warning', 'danger'] else 'info' %}
+        <div class="flash-message flash-{{ category }} mb-4" role="alert"> {{ message }} </div>
+        {% endfor %}
+    {% endif %}
+{% endwith %}
+
+{# Main Unit Info Card (Always Visible) #}
+<div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 mb-6">
+    <div class="flex justify-between items-start mb-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800">
+                Unit: {{ unit.stockNumber or 'Unknown Stock #' }}
+                {% if unit.year or unit.make or unit.model %}
+                    <span class="text-xl font-normal text-gray-600">- {{ unit.year | default('') }} {{ unit.make | default('') }} {{ unit.model | default('') }}</span>
+                {% endif %}
+            </h1>
+        </div>
+        {# Create PO / Add Jobs Button #}
+        <button type="button" id="unit-create-po-btn" data-stock-number="{{ unit.stockNumber }}"
+                class="ml-4 px-3 py-1.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 whitespace-nowrap">
+            Add Jobs / PO
+        </button>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <p><strong>VIN:</strong> {{ unit.vin | default('N/A') }}</p>
+        <p><strong>Location:</strong> {{ unit.location | default('N/A') }}</p>
+        <p><strong>Department:</strong> {{ unit.department | default('N/A') }}</p>
+        <p><strong>Date In:</strong> {{ unit.dateIn.strftime('%Y-%m-%d') if unit.dateIn else 'N/A' }}</p>
+        <p><strong>Promise Date:</strong> {{ unit.promiseDate.strftime('%Y-%m-%d') if unit.promiseDate else 'N/A' }}</p>
+        <p><strong>Revised Date:</strong> {{ unit.revisedDate.strftime('%Y-%m-%d') if unit.revisedDate else 'N/A' }}</p>
+        <p><strong>Access:</strong> {{ unit.access | default('N/A') }}</p>
+        <p><strong>Access 2:</strong> {{ unit.access2 | default('N/A') }}</p>
+        <p><strong>Access 3:</strong> {{ unit.access3 | default('N/A') }}</p>
+        <p><strong>Dealership:</strong> {{ unit.dealership | default('N/A') }}</p>
+    </div>
+</div>
+
+{# --- Container for Dynamically Loaded Content from Side Menu --- #}
+<div id="dynamic-content-area" class="mb-6">
+     <p class="text-center text-gray-500 italic py-4">Select an item from the side menu to view details.</p>
+</div>
+{# --- End Dynamic Container --- #}
+
+
+{# --- Hidden Data Sections (Content copied from these by Side Menu JS) --- #}
+<div id="data-sources" class="hidden">
+
+    {# Current Jobs Section Data #}
+    <div id="current-jobs-content">
+        <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md border border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Current Jobs</h2>
+            <div class="overflow-x-auto"> <table class="min-w-full divide-y divide-gray-200 text-sm"> <thead class="bg-gray-50"> <tr> <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Job ID</th> <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th> <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th> <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th> <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Added</th> <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned Tech</th> <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assign / Set Priority</th> </tr> </thead> <tbody class="bg-white divide-y divide-gray-200"> {% if jobs %} {% for job in jobs %} <tr> <td class="px-3 py-2 whitespace-nowrap">{{ job.job_id }}</td> <td class="px-3 py-2" title="{{ job.job1 | default('') }}">{{ job.job_description_display | default('N/A') }}</td> <td class="px-3 py-2 whitespace-nowrap">{{ job.status | default('N/A') }}</td> <td class="px-3 py-2 whitespace-nowrap">{{ job.priority | default('N/A') }}</td> <td class="px-3 py-2 whitespace-nowrap">{{ job.dateAdded.strftime('%Y-%m-%d %H:%M') if job.dateAdded else 'N/A' }}</td> <td class="px-3 py-2 whitespace-nowrap">{{ job.assigned_tech_name | default('Unassigned') }}</td> <td class="px-3 py-2 whitespace-nowrap"> <form method="POST" action="{{ url_for('assign_job', job_id=job.job_id) }}" class="flex items-center space-x-1"> <input type="text" name="priority" placeholder="Prio" value="{{ job.priority | default('') }}" size="4" class="shadow-sm border border-gray-300 rounded py-1 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"> <select name="tech_id" required class="shadow-sm border border-gray-300 rounded py-1 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"> <option value="">Select Tech...</option> {% for tech in techs %} <option value="{{ tech.techNumber }}" {% if tech.techNumber == job.assigned_tech_id %}selected{% endif %}> {{ tech.techName }} </option> {% endfor %} </select> <button type="submit" class="px-2 py-1 text-xs font-medium rounded text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:ring-offset-1"> Assign </button> </form> </td> </tr> {% endfor %} {% else %} <tr> <td colspan="7" class="px-3 py-3 text-center text-gray-500">No current jobs found for this unit.</td> </tr> {% endif %} </tbody> </table> </div>
+        </div>
+    </div>
+
+    {# Step History Section Data #}
+    <div id="step-history-content">
+        <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md border border-gray-200">
+             <h2 class="text-xl font-semibold text-gray-700 mb-4">Step History</h2>
+              <div class="overflow-x-auto"> <table class="min-w-full divide-y divide-gray-200 text-sm"> <thead class="bg-gray-50"> <tr> <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Step</th> <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date In</th> <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Out</th> </tr> </thead> <tbody class="bg-white divide-y divide-gray-200"> {% if steps %} {% for step in steps %} <tr> <td class="px-3 py-2 whitespace-nowrap">{{ step.step | default('N/A') }}</td> <td class="px-3 py-2 whitespace-nowrap">{{ step.dateIn.strftime('%Y-%m-%d %H:%M') if step.dateIn else 'N/A' }}</td> <td class="px-3 py-2 whitespace-nowrap">{{ step.dateOut.strftime('%Y-%m-%d %H:%M') if step.dateOut else 'Ongoing' }}</td> </tr> {% endfor %} {% else %} <tr> <td colspan="3" class="px-3 py-3 text-center text-gray-500">No step history found.</td> </tr> {% endif %} </tbody> </table> </div>
+        </div>
+    </div>
+
+    {# Notes Section Data #}
+    <div id="notes-content">
+        <div class="bg-white p-6 rounded-lg shadow-md border border-gray-200 lg:col-span-2">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Notes</h2>
+            {# Add Note Form #}
+            <form method="POST" action="{{ url_for('add_note', stock_number=unit.stockNumber) }}" class="mb-6 border-b pb-4">
+                 <label for="note_text" class="block text-sm font-medium text-gray-700 mb-1">Add New Note:</label>
+                 <textarea name="note_text" id="note_text" rows="3" required
+                           class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 rounded-md p-2"
+                           placeholder="Enter note details here..."></textarea>
+                 <div class="mt-3 text-right">
+                     <button type="submit" class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                         Add Note
+                     </button>
+                 </div>
+            </form>
+            {# Existing Notes Display #}
+            <div class="space-y-4 max-h-60 overflow-y-auto pr-2">
+                {% if notes %}
+                    {% for note in notes %}
+                        <div class="border-b border-gray-200 pb-2">
+                            <p class="text-gray-800">{{ note.notes | default('N/A') }}</p>
+                            <p class="text-xs text-gray-500 mt-1">
+                                {% if note.status %}Status: {{ note.status }} | {% endif %}
+                                Added: {{ note.dateTime.strftime('%Y-%m-%d %H:%M') if note.dateTime else 'N/A' }}
+                            </p>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-sm text-gray-500">No notes found for this unit.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# Inventory Checklist Section Data #}
+    <div id="inventory-content">
+        <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md border border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Inventory Checklist</h2>
+            {% if inventory_data %}
+                {# Display Check-In Status #}
+                 <h3 class="text-lg font-semibold text-gray-700 mb-3">Check-In Status</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm mb-4">
+                    <p><strong>Locking Nuts:</strong> {{ 'Yes' if inventory_data.lockingNutsIn|int == 1 else 'No' }}</p>
+                    <p><strong>Manuals:</strong> {{ 'Yes' if inventory_data.manualsIn|int == 1 else 'No' }}</p>
+                    <p><strong>Jack:</strong> {{ 'Yes' if inventory_data.jacksIn|int == 1 else 'No' }}</p>
+                    <p><strong>Tonneau Cover:</strong> {{ 'Yes' if inventory_data.tunneauCoverIn|int == 1 else 'No' }}</p>
+                    <p><strong>Block Heater Cord:</strong> {{ 'Yes' if inventory_data.blockHeaterCordIn|int == 1 else 'No' }}</p>
+                    <p><strong>Floor Mats Count:</strong> {{ inventory_data.floorMatsIn | default(0) }}</p>
+                    <p><strong>Cargo Mats Count:</strong> {{ inventory_data.cargoMatsIn | default(0) }}</p>
+                </div>
+                {# Display Check-Out Status #}
+                <div class="border-t pt-4 mt-4">
+                     <h3 class="text-lg font-semibold text-gray-700 mb-3">Check-Out Status</h3>
+                     {% if checkout_complete %}
+                        <p class="text-sm text-red-600 font-semibold mb-2">Check-Out Completed</p>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2 text-sm">
+                             <p><strong>Locking Nuts Out:</strong> {{ 'Yes' if inventory_data.lockingNutsOut|int == 1 else 'No' }}</p>
+                             <p><strong>Manuals Out:</strong> {{ 'Yes' if inventory_data.manualsOut|int == 1 else 'No' }}</p>
+                             <p><strong>Jack Out:</strong> {{ 'Yes' if inventory_data.jacksOut|int == 1 else 'No' }}</p>
+                             <p><strong>Tonneau Cover Out:</strong> {{ 'Yes' if inventory_data.tunneauCoverOut|int == 1 else 'No' }}</p>
+                             <p><strong>Block Heater Cord Out:</strong> {{ 'Yes' if inventory_data.blockHeaterCordOut|int == 1 else 'No' }}</p>
+                             <p><strong>Floor Mats Out Count:</strong> {{ inventory_data.floorMatsOut | default(0) }}</p>
+                             <p><strong>Cargo Mats Out Count:</strong> {{ inventory_data.cargoMatsOut | default(0) }}</p>
+                        </div>
+                     {% else %}
+                         <p class="text-sm text-gray-500">Check-out not yet completed.</p>
+                     {% endif %}
+                </div>
+                 <p class="text-xs text-gray-500 mt-4">Last Updated: {{ inventory_data.changed.strftime('%Y-%m-%d %H:%M') if inventory_data.changed else 'N/A' }} UTC</p>
+            {% else %}
+                 <p class="text-sm text-gray-500">No inventory checklist submitted yet.</p>
+            {% endif %}
+        </div>
+    </div>
+
+    {# Images Section Data #}
+    <div id="images-content">
+        <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md border border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Images</h2>
+
+            {# Image Upload Form #}
+            <form method="POST" action="{{ url_for('add_image', stock_number=unit.stockNumber) }}" enctype="multipart/form-data" class="mb-6 border-b pb-4">
+                <label for="image_file" class="block text-sm font-medium text-gray-700 mb-1">Upload New Image:</label>
+                <div class="flex items-center space-x-2">
+                    <input type="file" name="image_file" id="image_file" required
+                           accept="image/*" capture="environment"
+                           class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 text-sm font-medium whitespace-nowrap">
+                        Upload
+                    </button>
+                </div>
+                 <p class="text-xs text-gray-500 mt-1">Allowed types: png, jpg, jpeg, gif, webp. Max size: ~16MB.</p>
+            </form>
+
+            {# Display Existing Images #}
+            <div class="flex flex-wrap gap-4">
+                {% if images %}
+                    {% for img_data in images %}
+                        <div class="image-container max-w-[150px] max-h-[150px] cursor-pointer lightbox-trigger">
+                             <div class="aspect-square overflow-hidden rounded-lg border bg-gray-100">
+                                <img src="data:image/jpeg;base64,{{ img_data }}"
+                                     alt="Unit Image for {{ unit.stockNumber }}"
+                                     class="object-cover w-full h-full"
+                                     loading="lazy"
+                                     onerror="this.onerror=null; this.parentElement.parentElement.classList.add('hidden');">
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-sm text-gray-500 w-full">No images uploaded for this unit yet.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# POs Section Data #}
+    <div id="pos-content">
+        <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md border border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Purchase Orders</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PO #</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date In</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Service</th>
+                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% if pos %}
+                            {% for po_item in pos %} {# Changed loop variable #}
+                            <tr>
+                                <td class="px-3 py-2 whitespace-nowrap">{{ po_item.po | default('N/A') }}</td>
+                                <td class="px-3 py-2 whitespace-nowrap">{{ po_item.dateIn.strftime('%Y-%m-%d %H:%M') if po_item.dateIn else 'N/A' }}</td>
+                                <td class="px-3 py-2">{{ po_item.service | default('N/A') }}</td>
+                                <td class="px-3 py-2 whitespace-nowrap">{{ po_item.status | default('N/A') }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="px-3 py-3 text-center text-gray-500">No Purchase Orders found for this unit.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    {# --- ADDED: Unit Chat History Section --- #}
+    <div id="unit-chat-content">
+        <div class="bg-white p-4 sm:p-6 rounded-lg shadow-md border border-gray-200">
+            <h2 class="text-xl font-semibold text-gray-700 mb-4">Chat History for this Unit</h2>
+            <div class="space-y-4 max-h-80 overflow-y-auto pr-2"> {# Added max-height and scroll #}
+                {% if unit_chats %}
+                    {% for chat in unit_chats %}
+                        <div class="border-b border-gray-200 pb-3 mb-3">
+                             <p class="text-sm text-gray-800">{{ chat.message_text | default('N/A') }}</p>
+                             <p class="text-xs text-gray-500 mt-1">
+                                 Sent by: <strong class="font-medium">{{ chat.sender_username | default('Unknown') }}</strong>
+                                 to <strong class="font-medium">{{ chat.recipient_username | default('Unknown') }}</strong>
+                                 at {{ chat.timestamp.strftime('%Y-%m-%d %H:%M') if chat.timestamp else 'N/A' }}
+                             </p>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-sm text-gray-500 italic">No chat messages found referencing this stock number.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    {# --- END ADDED --- #}
+
+</div> {# End Hidden Data Sources #}
+
+
+{# --- Stock In Modal --- #}
+{# ... (Modal code remains unchanged) ... #}
+<div id="stock-in-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-gray-900 bg-opacity-50">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 relative max-h-[80vh] overflow-y-auto">
+        <button id="stock-in-modal-close" class="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-2xl leading-none" aria-label="Close">&times;</button>
+        <h2 class="text-xl font-semibold mb-4 text-gray-800">Stock In Checklist for {{ unit.stockNumber or 'Unit' }}</h2>
+        <form method="POST" action="{{ url_for('stock_in_unit', stock_number=unit.stockNumber) }}">
+            <input type="hidden" name="stockNumber" value="{{ unit.stockNumber }}">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                {# Locking Nuts #}
+                <fieldset class="border rounded p-3"> <legend class="text-xs font-medium px-1">Locking Nuts</legend> <div class="flex space-x-4 mt-1"> <label class="flex items-center space-x-1"><input type="checkbox" name="lockingNutsIn" value="1" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"><span>Present</span></label> </div> </fieldset>
+                {# Manuals #}
+                <fieldset class="border rounded p-3"> <legend class="text-xs font-medium px-1">Manuals</legend> <div class="flex space-x-4 mt-1"> <label class="flex items-center space-x-1"><input type="checkbox" name="manualsIn" value="1" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"><span>Present</span></label> </div> </fieldset>
+                {# Jack #}
+                <fieldset class="border rounded p-3"> <legend class="text-xs font-medium px-1">Jack</legend> <div class="flex space-x-4 mt-1"> <label class="flex items-center space-x-1"><input type="checkbox" name="jacksIn" value="1" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"><span>Present</span></label> </div> </fieldset>
+                {# Tonneau Cover #}
+                <fieldset class="border rounded p-3"> <legend class="text-xs font-medium px-1">Tonneau Cover</legend> <div class="flex space-x-4 mt-1"> <label class="flex items-center space-x-1"><input type="checkbox" name="tunneauCoverIn" value="1" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"><span>Present</span></label> </div> </fieldset>
+                 {# Floor Mats #}
+                <fieldset class="border rounded p-3"> <legend class="text-xs font-medium px-1">Floor Mats</legend> <div class="mt-1"> <label for="floorMatsCount" class="block text-xs font-medium text-gray-700 mb-1">Count (0-10):</label> <select id="floorMatsCount" name="floorMatsCount" class="shadow-sm border border-gray-300 rounded py-1 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white w-full"> {% for i in range(11) %} <option value="{{ i }}">{{ i }}</option> {% endfor %} </select> </div> </fieldset>
+                 {# Cargo Mats #}
+                <fieldset class="border rounded p-3"> <legend class="text-xs font-medium px-1">Cargo Mats</legend> <div class="mt-1"> <label for="cargoMatsCount" class="block text-xs font-medium text-gray-700 mb-1">Count (0-10):</label> <select id="cargoMatsCount" name="cargoMatsCount" class="shadow-sm border border-gray-300 rounded py-1 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white w-full"> {% for i in range(11) %} <option value="{{ i }}">{{ i }}</option> {% endfor %} </select> </div> </fieldset>
+                 {# Block Heater Cord #}
+                <fieldset class="border rounded p-3"> <legend class="text-xs font-medium px-1">Block Heater Cord</legend> <div class="flex space-x-4 mt-1"> <label class="flex items-center space-x-1"><input type="checkbox" name="blockHeaterCordIn" value="1" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"><span>Present</span></label> </div> </fieldset>
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                 <button type="button" id="stock-in-modal-cancel" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"> Cancel </button>
+                 <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"> Save Inventory </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# --- Check Out Modal --- #}
+{# ... (Modal code remains unchanged) ... #}
+<div id="check-out-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-gray-900 bg-opacity-50">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-lg p-6 relative max-h-[80vh] overflow-y-auto">
+        <button id="check-out-modal-close" class="absolute top-3 right-3 text-gray-500 hover:text-gray-800 text-2xl leading-none" aria-label="Close">&times;</button>
+        <h2 class="text-xl font-semibold mb-4 text-gray-800">Check Out Checklist for {{ unit.stockNumber or 'Unit' }}</h2>
+        <form method="POST" action="{{ url_for('check_out_unit', stock_number=unit.stockNumber) }}">
+            <input type="hidden" name="stockNumber" value="{{ unit.stockNumber }}">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-4 text-sm">
+                {# Locking Nuts #}
+                <fieldset class="border rounded p-3"> <legend class="text-xs font-medium px-1">Locking Nuts</legend> <div class="flex space-x-4 mt-1"> <label class="flex items-center space-x-1"><input type="checkbox" name="lockingNutsOut" value="1" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"><span>Out</span></label> </div> </fieldset>
+                {# Manuals #}
+                <fieldset class="border rounded p-3"> <legend class="text-xs font-medium px-1">Manuals</legend> <div class="flex space-x-4 mt-1"> <label class="flex items-center space-x-1"><input type="checkbox" name="manualsOut" value="1" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"><span>Out</span></label> </div> </fieldset>
+                {# Jack #}
+                <fieldset class="border rounded p-3"> <legend class="text-xs font-medium px-1">Jack</legend> <div class="flex space-x-4 mt-1"> <label class="flex items-center space-x-1"><input type="checkbox" name="jacksOut" value="1" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"><span>Out</span></label> </div> </fieldset>
+                {# Tonneau Cover #}
+                <fieldset class="border rounded p-3"> <legend class="text-xs font-medium px-1">Tonneau Cover</legend> <div class="flex space-x-4 mt-1"> <label class="flex items-center space-x-1"><input type="checkbox" name="tunneauCoverOut" value="1" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"><span>Out</span></label> </div> </fieldset>
+                {# Floor Mats #}
+                <fieldset class="border rounded p-3"> <legend class="text-xs font-medium px-1">Floor Mats</legend> <div class="mt-1"> <label for="floorMatsOutCount" class="block text-xs font-medium text-gray-700 mb-1">Count Out (0-10):</label> <select id="floorMatsOutCount" name="floorMatsOutCount" class="shadow-sm border border-gray-300 rounded py-1 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white w-full"> {% for i in range(11) %} <option value="{{ i }}">{{ i }}</option> {% endfor %} </select> </div> </fieldset>
+                {# Cargo Mats #}
+                <fieldset class="border rounded p-3"> <legend class="text-xs font-medium px-1">Cargo Mats</legend> <div class="mt-1"> <label for="cargoMatsOutCount" class="block text-xs font-medium text-gray-700 mb-1">Count Out (0-10):</label> <select id="cargoMatsOutCount" name="cargoMatsOutCount" class="shadow-sm border border-gray-300 rounded py-1 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white w-full"> {% for i in range(11) %} <option value="{{ i }}">{{ i }}</option> {% endfor %} </select> </div> </fieldset>
+                {# Block Heater Cord #}
+                <fieldset class="border rounded p-3"> <legend class="text-xs font-medium px-1">Block Heater Cord</legend> <div class="flex space-x-4 mt-1"> <label class="flex items-center space-x-1"><input type="checkbox" name="blockHeaterCordOut" value="1" class="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"><span>Out</span></label> </div> </fieldset>
+            </div>
+            <div class="mt-6 flex justify-end space-x-3">
+                 <button type="button" id="check-out-modal-cancel" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2"> Cancel </button>
+                 <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"> Confirm Check Out </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+{# --- Image Lightbox Modal --- #}
+{# ... (Modal code remains unchanged) ... #}
+<div id="image-lightbox-modal" class="fixed inset-0 z-[60] hidden flex items-center justify-center p-4 bg-black bg-opacity-75">
+    <div class="bg-white p-2 rounded-lg shadow-xl max-w-6xl max-h-[90vh] relative">
+        <button id="lightbox-close" class="absolute -top-2 -right-2 z-10 bg-red-600 text-white rounded-full p-1 leading-none hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500" aria-label="Close">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+        </button>
+        <img id="lightbox-image" src="" alt="Enlarged Unit Image" class="block max-w-full max-h-[88vh] object-contain">
+    </div>
+</div>
+
+{# --- Include PO Modal --- #}
+{% include '_po_modal.html' %}
+
+
+{# Back Link #}
+<div class="mt-8">
+    <a href="{{ url_for('dashboard') }}" class="text-blue-500 hover:text-blue-700">&larr; Back to Dashboard</a>
+</div>
+
+{% endblock %}
+
+
+{# --- Add JavaScript for dynamic content loading AND Modals --- #}
+{% block scripts_extra %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // --- Side Menu Content Loading Logic ---
+        const dynamicContentArea = document.getElementById('dynamic-content-area');
+        const menuItems = document.querySelectorAll('.side-menu-item');
+        const dataSources = document.getElementById('data-sources');
+
+        function loadDynamicContent(targetId) {
+             const sourceContent = document.getElementById(targetId);
+             if (dynamicContentArea && sourceContent) {
+                 dynamicContentArea.innerHTML = sourceContent.innerHTML;
+                 // Re-attach listeners if content includes interactive elements
+                 if (targetId === 'images-content') {
+                     attachLightboxListeners();
+                 }
+                 // Add other re-attachments if necessary (e.g., for job assignment forms if loaded dynamically)
+             }
+             else { dynamicContentArea.innerHTML = '<p class="text-red-500">Error: Content not found.</p>'; console.error(`Source content element with ID '${targetId}' not found.`); }
+             // Close sidebar on mobile after selecting an item
+             if (typeof closeMenu === 'function' && window.innerWidth < 768) {
+                 closeMenu();
+             } else if (typeof closeMenu !== 'function') {
+                 console.warn('closeMenu function not found.');
+             }
+        }
+        menuItems.forEach(item => {
+            // Add click listener only if it has a data-target
+            if(item.hasAttribute('data-target')) {
+                item.addEventListener('click', function(event) {
+                    event.preventDefault();
+                    const targetId = this.getAttribute('data-target');
+                    loadDynamicContent(targetId);
+
+                    // Highlight active link
+                    menuItems.forEach(link => link.classList.remove('bg-gray-700'));
+                    this.classList.add('bg-gray-700');
+                });
+            }
+        });
+        // Load the 'Current Jobs' section by default when page loads
+        if (document.getElementById('current-jobs-content')) {
+             loadDynamicContent('current-jobs-content');
+             document.getElementById('show-jobs-link')?.classList.add('bg-gray-700'); // Highlight default
+        }
+        else if (document.getElementById('step-history-content')) {
+            loadDynamicContent('step-history-content');
+            document.getElementById('show-steps-link')?.classList.add('bg-gray-700');
+        }
+        else {
+            dynamicContentArea.innerHTML = '<p class="text-center text-gray-500 italic py-4">Select an item from the side menu to view details.</p>';
+        }
+        // --- End Side Menu Logic ---
+
+        // --- Stock In Modal Logic ---
+        const stockInButton = document.getElementById('stock-in-button');
+        const stockInModal = document.getElementById('stock-in-modal');
+        const stockInModalClose = document.getElementById('stock-in-modal-close');
+        const stockInModalCancel = document.getElementById('stock-in-modal-cancel');
+        function openStockInModal() { if (stockInModal) stockInModal.classList.remove('hidden'); }
+        function closeStockInModal() { if (stockInModal) stockInModal.classList.add('hidden'); }
+        if (stockInButton) stockInButton.addEventListener('click', function(event){ event.preventDefault(); openStockInModal(); });
+        if (stockInModalClose) stockInModalClose.addEventListener('click', closeStockInModal);
+        if (stockInModalCancel) stockInModalCancel.addEventListener('click', closeStockInModal);
+        if (stockInModal) stockInModal.addEventListener('click', function(event) { if (event.target === stockInModal) closeStockInModal(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && stockInModal && !stockInModal.classList.contains('hidden')) closeStockInModal(); });
+
+        // --- Check Out Modal Logic ---
+        const checkOutButton = document.getElementById('check-out-button');
+        const checkOutModal = document.getElementById('check-out-modal');
+        const checkOutModalClose = document.getElementById('check-out-modal-close');
+        const checkOutModalCancel = document.getElementById('check-out-modal-cancel');
+        function openCheckOutModal() { if (checkOutModal) checkOutModal.classList.remove('hidden'); }
+        function closeCheckOutModal() { if (checkOutModal) checkOutModal.classList.add('hidden'); }
+        if (checkOutButton) checkOutButton.addEventListener('click', function(event){ event.preventDefault(); openCheckOutModal(); });
+        if (checkOutModalClose) checkOutModalClose.addEventListener('click', closeCheckOutModal);
+        if (checkOutModalCancel) checkOutModalCancel.addEventListener('click', closeCheckOutModal);
+        if (checkOutModal) checkOutModal.addEventListener('click', function(event) { if (event.target === checkOutModal) closeCheckOutModal(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && checkOutModal && !checkOutModal.classList.contains('hidden')) closeCheckOutModal(); });
+
+        // --- Image Lightbox Logic ---
+        const lightboxModal = document.getElementById('image-lightbox-modal');
+        const lightboxImage = document.getElementById('lightbox-image');
+        const lightboxClose = document.getElementById('lightbox-close');
+        function openLightbox(imgSrc) {
+            if (lightboxModal && lightboxImage) {
+                lightboxImage.src = imgSrc;
+                lightboxModal.classList.remove('hidden');
+                lightboxModal.classList.add('flex');
+            }
+        }
+        function closeLightbox() {
+             if (lightboxModal) {
+                lightboxModal.classList.add('hidden');
+                lightboxModal.classList.remove('flex');
+                lightboxImage.src = "";
+            }
+        }
+        function handleLightboxClick(event) { // Define handler separately
+            const trigger = event.target.closest('.lightbox-trigger');
+            if (trigger) {
+                 const imgElement = trigger.querySelector('img');
+                 if (imgElement) {
+                     openLightbox(imgElement.src);
+                 }
+            }
+        }
+        function attachLightboxListeners() { // Function to attach listeners
+            const contentArea = document.getElementById('dynamic-content-area');
+            if (contentArea) {
+                 // Use event delegation - listener attached once to the container
+                 contentArea.removeEventListener('click', handleLightboxClick); // Remove old one if re-attaching
+                 contentArea.addEventListener('click', handleLightboxClick);
+            }
+        }
+        if (lightboxClose) lightboxClose.addEventListener('click', closeLightbox);
+        if (lightboxModal) lightboxModal.addEventListener('click', function(event) { if (event.target === lightboxModal) closeLightbox(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && lightboxModal && !lightboxModal.classList.contains('hidden')) closeLightbox(); });
+        // Initial attachment if images are loaded by default (though they aren't here)
+        // attachLightboxListeners();
+
+
+        // --- PO Modal Logic (Common for Dashboard & Unit Info) ---
+        const poModal = document.getElementById('po-modal');
+        const poModalCloseBtn = document.getElementById('po-modal-close');
+        const poModalCancelBtn = document.getElementById('po-modal-cancel');
+        const poForm = document.getElementById('po-form');
+        const poModalStockNumSpan = document.getElementById('po-modal-stock-number');
+        const poModalSourceInput = document.getElementById('po-modal-source');
+        const poRequiredIndicator = document.getElementById('po-required-indicator');
+        const poRequiredText = document.getElementById('po-required-text');
+        const poNumberInput = document.getElementById('po_number');
+        const customServicesContainer = document.getElementById('custom-services-container');
+        const addCustomServiceButton = document.getElementById('add-custom-service');
+        const totalCostSpan = document.getElementById('po-total-cost');
+
+        function closePoModal() { // Ensure this is defined
+            if (poModal) {
+                poModal.classList.add('hidden');
+                poModal.classList.remove('flex');
+            }
+        }
+
+        function calculateTotalCost() {
+            let total = 0.0;
+            // Standard services
+            document.querySelectorAll('#po-modal .po-service-checkbox:checked').forEach(checkbox => {
+                total += parseFloat(checkbox.getAttribute('data-cost') || 0);
+            });
+            // Custom services
+            document.querySelectorAll('#po-modal .custom-service-cost').forEach(input => {
+                total += parseFloat(input.value || 0);
+            });
+             if(totalCostSpan) totalCostSpan.textContent = total.toFixed(2);
+        }
+
+        function addCustomServiceRow() {
+            if (!customServicesContainer) return;
+            const div = document.createElement('div');
+            div.className = 'flex items-center space-x-2 custom-service-row';
+            div.innerHTML = `
+                <input type="text" name="custom_service_name[]" placeholder="Service Name" required class="flex-grow shadow-sm sm:text-sm border-gray-300 rounded-md p-1">
+                <input type="number" name="custom_service_cost[]" placeholder="Cost" required step="0.01" min="0" value="0.00" class="w-24 shadow-sm sm:text-sm border-gray-300 rounded-md p-1 custom-service-cost">
+                <button type="button" class="text-red-500 hover:text-red-700 remove-custom-service p-1 leading-none">&times;</button>
+            `;
+            customServicesContainer.appendChild(div);
+        }
+
+        // Event listeners for PO modal common elements
+        if (poModalCloseBtn) poModalCloseBtn.addEventListener('click', closePoModal);
+        if (poModalCancelBtn) poModalCancelBtn.addEventListener('click', closePoModal);
+        if (poModal) {
+            poModal.addEventListener('click', function(event) {
+                if (event.target === poModal) { // Click on backdrop
+                    closePoModal();
+                }
+                // Listener for adding custom service row (delegated)
+                if (event.target && event.target.id === 'add-custom-service') {
+                     addCustomServiceRow();
+                }
+                 // Listener for removing custom service row (delegated)
+                if (event.target && event.target.classList.contains('remove-custom-service')) {
+                    event.target.parentElement.remove();
+                    calculateTotalCost();
+                }
+            });
+             // Listeners for cost calculation (delegated)
+            poModal.addEventListener('change', function(event) {
+                if (event.target.matches('.po-service-checkbox') || event.target.matches('.custom-service-cost')) {
+                    calculateTotalCost();
+                }
+            });
+            poModal.addEventListener('input', function(event) {
+                if (event.target.matches('.custom-service-cost')) {
+                    calculateTotalCost();
+                }
+            });
+        }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && poModal && !poModal.classList.contains('hidden')) {
+                closePoModal();
+            }
+        });
+
+
+        // --- Specific JS for Unit Info PO Button ---
+        const unitPoModalButton = document.getElementById('unit-create-po-btn');
+
+        function openUnitPoModal(stockNumber) {
+            if (!poModal || !poForm || !poModalStockNumSpan || !poModalSourceInput) return;
+
+             // Reset form fields
+            poForm.reset();
+            if(customServicesContainer) customServicesContainer.innerHTML = ''; // Clear custom services
+            calculateTotalCost(); // Reset total cost display
+
+            // Set modal specifics for unit_info page
+            poModalStockNumSpan.textContent = stockNumber;
+            poModalSourceInput.value = 'unit_info'; // Set source
+            poForm.action = `/unit/create_po/${stockNumber}`; // Set form action URL
+
+            // Hide PO number requirement
+            if (poRequiredIndicator) poRequiredIndicator.classList.add('hidden');
+            if (poRequiredText) poRequiredText.classList.add('hidden');
+            if (poNumberInput) poNumberInput.required = false; // PO not required from unit_info
+
+            poModal.classList.remove('hidden');
+            poModal.classList.add('flex');
+        }
+
+        if (unitPoModalButton) {
+            unitPoModalButton.addEventListener('click', function() {
+                const stockNumber = this.getAttribute('data-stock-number');
+                openUnitPoModal(stockNumber);
+            });
+        }
+        // --- End Unit Info PO JS ---
+
+    });
+</script>
+{% endblock %}

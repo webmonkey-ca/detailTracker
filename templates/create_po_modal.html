@@ -1,0 +1,112 @@
+{# Modal for Creating PO and Jobs #}
+<div id="create-po-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4 bg-gray-900 bg-opacity-70">
+    <div class="bg-white rounded-lg shadow-xl w-full max-w-2xl p-6 relative max-h-[90vh] flex flex-col">
+        {# Modal Header #}
+        <div class="flex justify-between items-center border-b pb-3 mb-4">
+            <h2 class="text-xl font-semibold text-gray-800">Create Purchase Order & Jobs</h2>
+            <button id="create-po-modal-close" class="text-gray-500 hover:text-gray-800 text-2xl leading-none" aria-label="Close">&times;</button>
+        </div>
+
+        {# Modal Body - Scrollable #}
+        <div class="flex-grow overflow-y-auto pr-2">
+            <form method="POST" action="{{ url_for('create_po') }}" id="create-po-form">
+                {# Hidden field to track referrer (optional, for redirect logic) #}
+                <input type="hidden" name="unit_info_referrer" id="unit_info_referrer_flag" value="">
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                    {# Stock Number Input (Required) #}
+                    <div>
+                        <label for="po_stock_number" class="block text-sm font-medium text-gray-700">Stock Number *</label>
+                        {# This might be pre-filled by JS if opened from unit_info #}
+                        <input type="text" name="stock_number" id="po_stock_number" required
+                               class="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2">
+                    </div>
+                    {# PO Number Input (Required) #}
+                    <div>
+                        <label for="po_number" class="block text-sm font-medium text-gray-700">PO Number *</label>
+                        <input type="text" name="po_number" id="po_number" required
+                               class="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-2">
+                    </div>
+                </div>
+
+                {# Standard Services Checkboxes #}
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-800 mb-2">Standard Services</h3>
+                    <div class="max-h-48 overflow-y-auto border rounded-md p-3 space-y-2 bg-gray-50">
+                        {% if services %}
+                            {% for service in services %}
+                            <div class="flex items-center justify-between service-item">
+                                <label class="flex items-center text-sm text-gray-700">
+                                    <input type="checkbox" name="standard_service" value="{{ service.service }}"
+                                           data-cost="{{ service.cost | float | default(0.0) }}"
+                                           class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 mr-2 standard-service-checkbox">
+                                    {{ service.service }}
+                                </label>
+                                <span class="text-sm text-gray-500">${{ "%.2f"|format(service.cost|float) if service.cost is not none else '0.00' }}</span>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-sm text-gray-500">No standard services found.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                {# Additional Work Section #}
+                <div class="mb-4">
+                    <h3 class="text-lg font-medium text-gray-800 mb-2">Additional Work</h3>
+                    <div id="additional-work-items" class="space-y-3">
+                        {# JS will add items here #}
+                        <div class="text-sm text-gray-500 italic">Click "Add Item" to add custom work.</div>
+                    </div>
+                    <button type="button" id="add-additional-item"
+                            class="mt-2 inline-flex items-center px-3 py-1 border border-transparent text-sm leading-4 font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                        + Add Item
+                    </button>
+                </div>
+
+            </form> {# End Form #}
+        </div> {# End Scrollable Body #}
+
+        {# Modal Footer #}
+        <div class="border-t pt-4 mt-4 flex flex-col sm:flex-row justify-between items-center">
+             {# Total Cost Display #}
+             <div class="text-lg font-semibold text-gray-800 mb-2 sm:mb-0">
+                 Total Estimated Cost: $<span id="total-cost">0.00</span>
+             </div>
+             {# Action Buttons #}
+            <div class="flex space-x-3">
+                <button type="button" id="create-po-modal-cancel" class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-400 focus:ring-offset-2 text-sm font-medium">
+                    Cancel
+                </button>
+                <button type="submit" form="create-po-form" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 text-sm font-medium">
+                    Create PO & Jobs
+                </button>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+{# Template for additional work items (used by JS) #}
+<template id="additional-item-template">
+    <div class="additional-item flex items-center space-x-2 p-2 border rounded bg-white">
+        <div class="flex-grow">
+            <label class="sr-only">Description</label>
+            <input type="text" name="additional_description[]" placeholder="Work Description" required
+                   class="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md p-1">
+        </div>
+        <div class="w-24">
+             <label class="sr-only">Cost</label>
+            <div class="relative rounded-md shadow-sm">
+                 <div class="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none">
+                     <span class="text-gray-500 sm:text-sm">$</span>
+                 </div>
+                <input type="number" name="additional_cost[]" placeholder="Cost" step="0.01" min="0" value="0.00"
+                       class="additional-cost-input shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full pl-7 sm:text-sm border-gray-300 rounded-md p-1">
+            </div>
+        </div>
+        <button type="button" class="remove-additional-item text-red-500 hover:text-red-700 p-1" title="Remove Item">
+             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+        </button>
+    </div>
+</template>
